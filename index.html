@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互动艺术画廊 - 梦幻视界</title>
+    
+    <!-- 引入外部字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- 引入 MediaPipe Pose -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --primary-font: 'Inter', sans-serif;
+            --title-font: 'Cinzel', serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: var(--primary-font);
+            background-color: #000;
+        }
+
+        /* 视频背景 */
+        #bg-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 0;
+            opacity: 1;
+        }
+
+        /* Three.js 画布 */
+        #three-canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* 页面主体容器 */
+        #main-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        /* 中央小窗口 */
+        #center-window {
+            position: relative;
+            width: 45vw;
+            height: 45vh;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            overflow: hidden;
+            pointer-events: auto;
+            transition: all 1s cubic-bezier(0.8, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 全屏状态 */
+        #center-window.fullscreen {
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        /* 隐藏的视频元素（用于MediaPipe） */
+        #input_video {
+            display: none;
+        }
+
+        /* 艺术化呈现画布 */
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.5s;
+        }
+
+        /* 闲置动画容器 (羊和鹿) */
+        #idle-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            overflow: hidden;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.5s;
+            background: linear-gradient(to top, rgba(255,255,255,0.9), rgba(255,255,255,0));
+        }
+
+        .animal-sprite {
+            position: absolute;
+            bottom: 20px;
+            height: 60px;
+            will-change: transform;
+            animation: walk-across linear infinite, bobbing 0.5s alternate infinite ease-in-out;
+        }
+
+        @keyframes walk-across {
+            0% { left: -100px; }
+            100% { left: calc(100% + 100px); }
+        }
+
+        @keyframes bobbing {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-5px); }
+        }
+
+        /* 操作按钮 */
+        #describe-btn {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 10px 25px; /* 稍微缩小了 Padding */
+            border-radius: 30px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            z-index: 20;
+        }
+
+        #describe-btn:hover {
+            background: #fff;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transform: translateX(-50%) scale(1.02);
+        }
+
+        #describe-btn .zh {
+            display: block;
+            font-size: 14px; /* 从 16px 缩小到 14px */
+            font-weight: 600;
+            color: #222;
+        }
+
+        #describe-btn .en {
+            display: block;
+            font-size: 11px; /* 英文也同步缩小了一点 */
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* 输入对话框浮层 */
+        #input-dialog {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.95);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #input-dialog.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #input-dialog h2 {
+            font-weight: 400;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        #prompt-input {
+            width: 60%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            outline: none;
+            font-family: var(--primary-font);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .dialog-btns {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            font-family: var(--primary-font);
+            transition: 0.2s;
+        }
+
+        .btn-submit { background: #222; color: #fff; }
+        .btn-submit:hover { background: #000; }
+        .btn-cancel { background: #eee; color: #333; }
+        .btn-cancel:hover { background: #ddd; }
+
+        /* 生成的图像展示区 */
+        #ai-image-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            z-index: 25;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+        }
+
+        #ai-image-view.show {
+            opacity: 1;
+        }
+
+        /* 加载状态 */
+        .loading-spinner {
+            display: none;
+            border: 4px solid rgba(0,0,0,0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: #222;
+            animation: spin 1s linear infinite;
+            margin-top: 20px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- 背景视频：qixi.mp4 -->
+    <video id="bg-video" src="qixi.mp4" autoplay loop muted playsinline></video>
+
+    <!-- Three.js 容器 -->
+    <div id="three-canvas-container"></div>
+
+    <!-- 页面主体结构 -->
+    <div id="main-container">
+        <!-- 核心交互小窗口 -->
+        <div id="center-window">
+            
+            <!-- 识别视频源 -->
+            <video id="input_video" autoplay playsinline></video>
+            
+            <!-- 艺术化图形绘制层 -->
+            <canvas id="output_canvas"></canvas>
+
+            <!-- 闲置动画层（羊与鹿） -->
+            <div id="idle-container"></div>
+
+            <!-- 操作按钮 -->
+            <div id="describe-btn">
+                <span class="zh">请在这里描述您看到的画作</span>
+                <span class="en">How would you describe the painting before you?</span>
+            </div>
+
+            <!-- 输入提示框 -->
+            <div id="input-dialog">
+                <h2>请尽量详细且具体地描绘吧</h2>
+                <input type="text" id="prompt-input" placeholder="AI能够理解多少您的描述呢?图像生成后双击可返回" autocomplete="off">
+                <div class="loading-spinner" id="loading"></div>
+                <div class="dialog-btns">
+                    <button class="btn btn-cancel" id="btn-cancel">取消</button>
+                    <button class="btn btn-submit" id="btn-submit">生成画作</button>
+                </div>
+            </div>
+
+            <!-- AI 图像展示层 -->
+            <div id="ai-image-view"></div>
+        </div>
+    </div>
+
+    <!-- SVG 图标定义 (羊和鹿) -->
+    <svg width="0" height="0" style="display:none;">
+        <defs>
+            <g id="svg-deer" fill="#8B5A2B">
+                <path d="M40 20 Q45 10 50 15 Q55 20 50 30 L60 40 Q70 45 75 55 L75 80 L65 80 L65 60 L50 60 L50 80 L40 80 L40 65 Q30 65 25 55 L20 75 L10 75 L15 50 Q10 40 20 30 Z" />
+                <path d="M45 15 L40 5 M45 15 L50 5 M50 15 L55 5" stroke="#6b4423" stroke-width="2" fill="none"/>
+            </g>
+            <g id="svg-sheep" fill="#eee">
+                <path d="M20 50 Q20 30 40 30 Q45 20 55 20 Q70 20 70 35 Q80 35 80 50 Q80 65 70 65 L20 65 Z" stroke="#ccc" stroke-width="2"/>
+                <rect x="30" y="60" width="6" height="15" fill="#333" rx="3"/>
+                <rect x="40" y="60" width="6" height="15" fill="#333" rx="3"/>
+                <rect x="60" y="60" width="6" height="15" fill="#333" rx="3"/>
+                <circle cx="75" cy="45" r="10" fill="#333"/>
+            </g>
+        </defs>
+    </svg>
+
+    <script>
+        // ==========================================
+        // 全局配置与状态
+        // ==========================================
+        const apiKey = ""; // API 密钥（环境运行注入）
+        
+        const centerWindow = document.getElementById('center-window');
+        const outputCanvas = document.getElementById('output_canvas');
+        const canvasCtx = outputCanvas.getContext('2d');
+        const videoElement = document.getElementById('input_video');
+        const idleContainer = document.getElementById('idle-container');
+        const describeBtn = document.getElementById('describe-btn');
+        const inputDialog = document.getElementById('input-dialog');
+        const promptInput = document.getElementById('prompt-input');
+        const btnSubmit = document.getElementById('btn-submit');
+        const btnCancel = document.getElementById('btn-cancel');
+        const aiImageView = document.getElementById('ai-image-view');
+        const loadingSpinner = document.getElementById('loading');
+        
+        let isUserDetected = false;
+        let lastDetectTime = Date.now();
+        let appState = 'camera'; // 'camera', 'generating', 'displaying'
+        let autoRecoverTimeoutId = null;
+
+        // ==========================================
+        // 1. Three.js 梦幻星空粒子背景系统
+        // ==========================================
+        const initThreeJS = () => {
+            const container = document.getElementById('three-canvas-container');
+            const scene = new THREE.Scene();
+            
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.z = 500;
+
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0x000000, 0); 
+            container.appendChild(renderer.domElement);
+
+            const createParticleTexture = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                const context = canvas.getContext('2d');
+                const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.2, 'rgba(255, 255, 255, 1)'); 
+                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.6)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                context.fillStyle = gradient;
+                context.fillRect(0, 0, 64, 64);
+                return new THREE.CanvasTexture(canvas);
+            };
+
+            const particleConfigs = [
+                { count: 25000, size: 3 },
+                { count: 1500, size: 4.5 },
+                { count: 150, size: 7 }
+            ];
+
+            const particleSystems = [];
+            const sharedTexture = createParticleTexture();
+            const color = new THREE.Color();
+
+            particleConfigs.forEach(config => {
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(config.count * 3);
+                const colors = new Float32Array(config.count * 3);
+                const velocities = [];
+
+                for(let i = 0; i < config.count; i++) {
+                    const startZ = (Math.random() - 0.5) * 600;
+                    positions[i*3] = (Math.random() - 0.5) * 2400;
+                    positions[i*3+1] = (Math.random() - 0.5) * 2400;
+                    positions[i*3+2] = startZ;
+                    
+                    velocities.push({
+                        x: (Math.random() - 0.5) * 2.5,
+                        y: (Math.random() - 0.5) * 2.5,
+                        baseZ: startZ
+                    });
+
+                    color.setHSL(0.45 + Math.random() * 0.08, 0.85, 0.7 + Math.random() * 0.25);
+                    colors[i*3] = color.r;
+                    colors[i*3+1] = color.g;
+                    colors[i*3+2] = color.b;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                const material = new THREE.PointsMaterial({
+                    size: config.size,
+                    map: sharedTexture,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    transparent: true,
+                    opacity: 1.0, 
+                    vertexColors: true
+                });
+
+                const particles = new THREE.Points(geometry, material);
+                scene.add(particles);
+                
+                particleSystems.push({
+                    geometry: geometry,
+                    velocities: velocities,
+                    count: config.count
+                });
+            });
+
+            let mouseX = 0;
+            let mouseY = 0;
+            let targetX = 0;
+            let targetY = 0;
+            let isHoveringOutside = true;
+
+            window.addEventListener('mousemove', (event) => {
+                mouseX = (event.clientX - window.innerWidth / 2) * 1.5;
+                mouseY = -(event.clientY - window.innerHeight / 2) * 1.5;
+
+                const rect = centerWindow.getBoundingClientRect();
+                isHoveringOutside = !(
+                    event.clientX >= rect.left && event.clientX <= rect.right &&
+                    event.clientY >= rect.top && event.clientY <= rect.bottom
+                );
+            });
+
+            const animate = () => {
+                requestAnimationFrame(animate);
+
+                const time = performance.now() * 0.001; 
+
+                targetX += (mouseX - targetX) * 0.05;
+                targetY += (mouseY - targetY) * 0.05;
+
+                particleSystems.forEach(sys => {
+                    const positionsAttr = sys.geometry.attributes.position;
+                    const velocities = sys.velocities;
+                    
+                    for(let i = 0; i < sys.count; i++) {
+                        let px = positionsAttr.getX(i);
+                        let py = positionsAttr.getY(i);
+                        let pz = positionsAttr.getZ(i);
+
+                        const bx = velocities[i].x;
+                        const by = velocities[i].y;
+                        const baseZ = velocities[i].baseZ;
+
+                        if(isHoveringOutside) {
+                            const dx = targetX - px;
+                            const dy = targetY - py;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            
+                            if(dist < 500) {
+                                const intensity = 1 - (dist / 500);
+                                const ease = intensity * intensity;
+                                
+                                px += dx * 0.02 * ease;
+                                py += dy * 0.02 * ease;
+                                
+                                const waveY = Math.sin(px * 0.002 + time * 1.5) * Math.cos(py * 0.002 + time * 1.8);
+                                const waveZ = Math.sin(px * 0.004 - time * 2) * Math.cos(py * 0.004 - time * 2);
+                                
+                                py += waveY * 0.5 * ease; 
+                                
+                                const targetZ = baseZ + waveZ * 60 * ease;
+                                pz += (targetZ - pz) * 0.08; 
+                            } else {
+                                px += bx;
+                                py += by;
+                                pz += (baseZ - pz) * 0.05;
+                            }
+                        } else {
+                            px += bx + (Math.random() - 0.5) * 2;
+                            py += by + (Math.random() - 0.5) * 2;
+                            pz += (baseZ - pz) * 0.05;
+                        }
+
+                        if(px > 1200 || px < -1200) px = (Math.random() - 0.5) * 2400;
+                        if(py > 1200 || py < -1200) py = (Math.random() - 0.5) * 2400;
+
+                        positionsAttr.setXYZ(i, px, py, pz);
+                    }
+                    positionsAttr.needsUpdate = true;
+                });
+                
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        };
+
+        // ==========================================
+        // 2. 闲置动画系统 (生成羊和鹿排队走过)
+        // ==========================================
+        const spawnAnimal = () => {
+            if(isUserDetected || appState !== 'camera') return; 
+
+            const animalDiv = document.createElement('div');
+            animalDiv.className = 'animal-sprite';
+            
+            const isDeer = Math.random() > 0.5;
+            const svgId = isDeer ? 'svg-deer' : 'svg-sheep';
+            
+            const scale = 0.6 + Math.random() * 0.6;
+            const duration = 15 + Math.random() * 10; 
+            
+            animalDiv.innerHTML = `<svg width="80" height="80" viewBox="0 0 100 100"><use href="#${svgId}"></use></svg>`;
+            animalDiv.style.transform = `scale(${scale})`;
+            animalDiv.style.animationDuration = `${duration}s, 0.5s`;
+            animalDiv.style.bottom = `${10 + Math.random() * 30}px`; 
+
+            idleContainer.appendChild(animalDiv);
+
+            setTimeout(() => {
+                if(animalDiv.parentNode) animalDiv.remove();
+            }, duration * 1000);
+        };
+
+        setInterval(spawnAnimal, 3500);
+
+        // ==========================================
+        // 3. MediaPipe Pose 姿势识别与几何图形
+        // ==========================================
+        const initMediaPipe = () => {
+            const pose = new Pose({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+            }});
+
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                smoothSegmentation: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            pose.onResults(onPoseResults);
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (appState === 'camera') {
+                        await pose.send({image: videoElement});
+                    }
+                },
+                width: 1280,
+                height: 720
+            });
+            camera.start();
+
+            const resizeCanvas = () => {
+                outputCanvas.width = centerWindow.clientWidth;
+                outputCanvas.height = centerWindow.clientHeight;
+            };
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+        };
+
+        const onPoseResults = (results) => {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+            
+            if (results.poseLandmarks) {
+                isUserDetected = true;
+                lastDetectTime = Date.now();
+                idleContainer.style.opacity = '0'; 
+                
+                drawArtisticGeometry(results.poseLandmarks);
+                
+            } else {
+                if(Date.now() - lastDetectTime > 1500) {
+                    isUserDetected = false;
+                    idleContainer.style.opacity = '1'; 
+                    canvasCtx.fillStyle = '#ffffff';
+                    canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                } else if(isUserDetected) {
+                     canvasCtx.fillStyle = 'rgba(255,255,255,0.1)';
+                     canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                }
+            }
+            canvasCtx.restore();
+        };
+
+        const bodyPerimeter = [
+            15, 13, 11, 7, 0, 8, 12, 14, 16, 24, 26, 28, 27, 25, 23
+        ];
+
+        const drawArtisticGeometry = (landmarks) => {
+            const w = outputCanvas.width;
+            const h = outputCanvas.height;
+            const time = Date.now() * 0.002;
+
+            canvasCtx.fillStyle = 'rgba(250, 250, 250, 0.4)';
+            canvasCtx.fillRect(0, 0, w, h);
+
+            const hueOffset = time * 20;
+
+            let validPoints = [];
+            bodyPerimeter.forEach(idx => {
+                if(landmarks[idx].visibility > 0.15) {
+                    validPoints.push(landmarks[idx]);
+                }
+            });
+
+            if(validPoints.length >= 3) {
+                let avgX = 0;
+                let avgY = 0;
+                
+                validPoints.forEach(p => {
+                    avgX += p.x * w;
+                    avgY += p.y * h;
+                });
+
+                avgX /= validPoints.length;
+                avgY /= validPoints.length;
+
+                canvasCtx.save();
+                
+                const scaleX = 1.0 + Math.sin(time * 1.1) * 0.25; 
+                const scaleY = 1.0 + Math.cos(time * 0.9) * 0.25; 
+                const rotation = Math.sin(time * 0.6) * 0.18;     
+
+                canvasCtx.translate(avgX, avgY);
+                canvasCtx.rotate(rotation);
+                canvasCtx.scale(scaleX, scaleY);
+
+                const points = validPoints.map(p => ({
+                    x: p.x * w - avgX,
+                    y: p.y * h - avgY
+                }));
+
+                canvasCtx.beginPath();
+                let midpoints = [];
+                for (let i = 0; i < points.length; i++) {
+                    let nextI = (i + 1) % points.length;
+                    midpoints.push({
+                        x: (points[i].x + points[nextI].x) / 2,
+                        y: (points[i].y + points[nextI].y) / 2
+                    });
+                }
+                
+                canvasCtx.moveTo(midpoints[0].x, midpoints[0].y);
+                for (let i = 0; i < points.length; i++) {
+                    let nextI = (i + 1) % points.length;
+                    canvasCtx.quadraticCurveTo(points[nextI].x, points[nextI].y, midpoints[nextI].x, midpoints[nextI].y);
+                }
+                canvasCtx.closePath();
+
+                const maxScale = Math.max(scaleX, scaleY);
+                const hue = (hueOffset + (avgY/h) * 100) % 360;
+                
+                canvasCtx.fillStyle = `hsla(${hue}, 38%, 68%, 0.65)`;
+                canvasCtx.fill();
+                
+                canvasCtx.strokeStyle = `hsla(${(hue+180)%360}, 28%, 70%, 0.1)`;
+                canvasCtx.lineWidth = 5 / maxScale; 
+                canvasCtx.stroke();
+
+                canvasCtx.restore();
+            }
+
+            landmarks.forEach((lm, i) => {
+                if(lm.visibility > 0.5) {
+                    const radius = 3 + Math.sin(time + i) * 2;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(lm.x * w, lm.y * h, radius, 0, Math.PI * 2);
+                    canvasCtx.fillStyle = '#fff';
+                    canvasCtx.fill();
+                }
+            });
+        };
+
+        // ==========================================
+        // 4. AI 图像生成与全屏逻辑
+        // ==========================================
+        describeBtn.addEventListener('click', () => {
+            appState = 'generating';
+            inputDialog.classList.add('active');
+            describeBtn.style.display = 'none';
+            promptInput.value = '';
+            promptInput.focus();
+        });
+
+        btnCancel.addEventListener('click', () => {
+            appState = 'camera';
+            inputDialog.classList.remove('active');
+            describeBtn.style.display = 'block';
+        });
+
+        btnSubmit.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if(!prompt) return;
+
+            loadingSpinner.style.display = 'block';
+            btnSubmit.disabled = true;
+            btnCancel.disabled = true;
+            promptInput.disabled = true;
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+                const payload = {
+                    instances: { prompt: prompt },
+                    parameters: { sampleCount: 1 }
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if(!response.ok) throw new Error("API 请求失败");
+                const result = await response.json();
+                const base64Img = result.predictions[0].bytesBase64Encoded;
+                
+                showGeneratedImage(`data:image/png;base64,${base64Img}`);
+            } catch (error) {
+                console.error("生成图像出错:", error);
+                alert("生成图像时发生错误，请稍后再试。");
+                resetUI();
+            }
+        });
+
+        const showGeneratedImage = (imgUrl) => {
+            appState = 'displaying';
+            aiImageView.style.backgroundImage = `url(${imgUrl})`;
+            inputDialog.classList.remove('active');
+            aiImageView.classList.add('show');
+            setTimeout(() => {
+                centerWindow.classList.add('fullscreen');
+                autoRecoverTimeoutId = setTimeout(() => {
+                    recoverToNormal();
+                }, 180000); 
+            }, 2000);
+        };
+
+        const recoverToNormal = () => {
+            if (autoRecoverTimeoutId) {
+                clearTimeout(autoRecoverTimeoutId);
+                autoRecoverTimeoutId = null;
+            }
+            centerWindow.classList.remove('fullscreen');
+            setTimeout(() => {
+                aiImageView.classList.remove('show');
+                resetUI();
+            }, 1000); 
+        };
+
+        centerWindow.addEventListener('dblclick', () => {
+            if (appState === 'displaying' && centerWindow.classList.contains('fullscreen')) {
+                recoverToNormal();
+            }
+        });
+
+        const resetUI = () => {
+            appState = 'camera';
+            describeBtn.style.display = 'block';
+            loadingSpinner.style.display = 'none';
+            btnSubmit.disabled = false;
+            btnCancel.disabled = false;
+            promptInput.disabled = false;
+            aiImageView.style.backgroundImage = 'none';
+            lastDetectTime = Date.now(); 
+        };
+
+        window.onload = () => {
+            initThreeJS();
+            initMediaPipe();
+            const bgVideo = document.getElementById('bg-video');
+            if (bgVideo) {
+                bgVideo.play().catch(e => {
+                    console.warn("视频自动播放可能受限:", e);
+                });
+            }
+        };
+
+    </script>
+</body>
+</html>
