@@ -1,4 +1,4 @@
-dongxeu<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -70,9 +70,12 @@ dongxeu<!DOCTYPE html>
             pointer-events: none;
         }
 
-        /* 中央小窗口 */
+        /* =========================================
+           中央小窗口 (窗口1 - 基础容器) 保持原样尺寸
+           ========================================= */
         #center-window {
             position: relative;
+            /* 保持原先的尺寸不变 */
             width: 45vw;
             height: 45vh;
             background-color: #ffffff;
@@ -86,15 +89,7 @@ dongxeu<!DOCTYPE html>
             align-items: center;
         }
 
-        /* 全屏状态 */
-        #center-window.fullscreen {
-            width: 100vw;
-            height: 100vh;
-            border-radius: 0;
-            box-shadow: none;
-        }
-
-        /* 隐藏的视频元素（用于MediaPipe） */
+        /* 隐藏的视频元素 */
         #input_video {
             display: none;
         }
@@ -151,7 +146,7 @@ dongxeu<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(0,0,0,0.1);
-            padding: 10px 25px; /* 稍微缩小了 Padding */
+            padding: 10px 25px; 
             border-radius: 30px;
             cursor: pointer;
             text-align: center;
@@ -168,154 +163,117 @@ dongxeu<!DOCTYPE html>
 
         #describe-btn .zh {
             display: block;
-            font-size: 14px; /* 从 16px 缩小到 14px */
+            font-size: 14px; 
             font-weight: 600;
             color: #222;
         }
 
         #describe-btn .en {
             display: block;
-            font-size: 11px; /* 英文也同步缩小了一点 */
+            font-size: 11px; 
             color: #666;
             margin-top: 4px;
         }
 
-        /* 输入对话框浮层 */
-        #input-dialog {
+        /* =========================================
+           放大的覆盖内嵌网页容器 (窗口2)
+           ========================================= */
+        #iframe-portal {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255,255,255,0.95);
-            z-index: 30;
+            /* 居中定位 */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            /* 窗口2被放大一倍，提供巨幅的创作空间 */
+            width: 90vw; 
+            height: 90vh;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            z-index: 50; 
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
+            overflow: hidden;
         }
 
-        #input-dialog.active {
+        /* 激活状态：显示并允许交互 */
+        #iframe-portal.active {
             opacity: 1;
             pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
         }
 
-        #input-dialog h2 {
-            font-weight: 400;
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        #prompt-input {
-            width: 60%;
-            padding: 15px 20px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 10px;
-            outline: none;
-            font-family: var(--primary-font);
-            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .dialog-btns {
-            margin-top: 20px;
-            display: flex;
-            gap: 15px;
-        }
-
-        .btn {
-            padding: 10px 25px;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            cursor: pointer;
-            font-family: var(--primary-font);
-            transition: 0.2s;
-        }
-
-        .btn-submit { background: #222; color: #fff; }
-        .btn-submit:hover { background: #000; }
-        .btn-cancel { background: #eee; color: #333; }
-        .btn-cancel:hover { background: #ddd; }
-
-        /* 生成的图像展示区 */
-        #ai-image-view {
+        /* 悬浮返回按钮 */
+        #close-iframe-btn {
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 15px;
+            left: 15px; 
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            cursor: pointer;
+            z-index: 60;
+            font-size: 13px;
+            font-family: var(--primary-font);
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: background 0.3s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #close-iframe-btn:hover {
+            background: rgba(0, 0, 0, 0.85);
+            transform: scale(1.05);
+        }
+
+        /* 内嵌的网页 iframe */
+        #external-iframe {
             width: 100%;
             height: 100%;
-            background-size: cover;
-            background-position: center;
-            z-index: 25;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 1s ease;
+            border: none;
+            flex-grow: 1;
+            background: #f9f9f9;
         }
-
-        #ai-image-view.show {
-            opacity: 1;
-        }
-
-        /* 加载状态 */
-        .loading-spinner {
-            display: none;
-            border: 4px solid rgba(0,0,0,0.1);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border-left-color: #222;
-            animation: spin 1s linear infinite;
-            margin-top: 20px;
-        }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <!-- 背景视频：qixi.mp4 -->
     <video id="bg-video" src="qixi.mp4" autoplay loop muted playsinline></video>
-
-    <!-- Three.js 容器 -->
     <div id="three-canvas-container"></div>
 
-    <!-- 页面主体结构 -->
     <div id="main-container">
-        <!-- 核心交互小窗口 -->
+        <!-- 基础窗口 (窗口1) -->
         <div id="center-window">
             
-            <!-- 识别视频源 -->
             <video id="input_video" autoplay playsinline></video>
-            
-            <!-- 艺术化图形绘制层 -->
             <canvas id="output_canvas"></canvas>
-
-            <!-- 闲置动画层（羊与鹿） -->
             <div id="idle-container"></div>
 
-            <!-- 操作按钮 -->
+            <!-- 点击呼出覆盖层的按钮 -->
             <div id="describe-btn">
                 <span class="zh">请在这里描述您看到的画作</span>
                 <span class="en">How would you describe the painting before you?</span>
             </div>
 
-            <!-- 输入提示框 -->
-            <div id="input-dialog">
-                <h2>请尽量详细且具体地描绘吧</h2>
-                <input type="text" id="prompt-input" placeholder="AI能够理解多少您的描述呢?图像生成后双击可返回" autocomplete="off">
-                <div class="loading-spinner" id="loading"></div>
-                <div class="dialog-btns">
-                    <button class="btn btn-cancel" id="btn-cancel">取消</button>
-                    <button class="btn btn-submit" id="btn-submit">生成画作</button>
-                </div>
-            </div>
+        </div>
 
-            <!-- AI 图像展示层 -->
-            <div id="ai-image-view"></div>
+        <!-- =========================================
+             放大的覆盖层：内嵌生图界面 (窗口2) 
+             ========================================= -->
+        <div id="iframe-portal">
+            <button id="close-iframe-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                返回互动空间
+            </button>
+            <!-- 引入 Pollinations AI 官方界面 -->
+            <iframe id="external-iframe" src="https://pollinations.ai/" frameborder="0" allow="clipboard-read; clipboard-write; microphone; camera"></iframe>
         </div>
     </div>
 
@@ -338,27 +296,21 @@ dongxeu<!DOCTYPE html>
 
     <script>
         // ==========================================
-        // 全局配置与状态
+        // 全局状态管理
         // ==========================================
-        const apiKey = "AIzaSyDOMJwNzx-NBsZRPyGINerJb8dNJJ-QcDU"; // API 密钥（环境运行注入）
         
         const centerWindow = document.getElementById('center-window');
         const outputCanvas = document.getElementById('output_canvas');
         const canvasCtx = outputCanvas.getContext('2d');
         const videoElement = document.getElementById('input_video');
         const idleContainer = document.getElementById('idle-container');
+        
         const describeBtn = document.getElementById('describe-btn');
-        const inputDialog = document.getElementById('input-dialog');
-        const promptInput = document.getElementById('prompt-input');
-        const btnSubmit = document.getElementById('btn-submit');
-        const btnCancel = document.getElementById('btn-cancel');
-        const aiImageView = document.getElementById('ai-image-view');
-        const loadingSpinner = document.getElementById('loading');
+        const iframePortal = document.getElementById('iframe-portal');
+        const closeIframeBtn = document.getElementById('close-iframe-btn');
         
         let isUserDetected = false;
         let lastDetectTime = Date.now();
-        let appState = 'camera'; // 'camera', 'generating', 'displaying'
-        let autoRecoverTimeoutId = null;
 
         // ==========================================
         // 1. Three.js 梦幻星空粒子背景系统
@@ -536,10 +488,11 @@ dongxeu<!DOCTYPE html>
         };
 
         // ==========================================
-        // 2. 闲置动画系统 (生成羊和鹿排队走过)
+        // 2. 闲置动画系统
         // ==========================================
         const spawnAnimal = () => {
-            if(isUserDetected || appState !== 'camera') return; 
+            // 当界面弹出 iframe 窗口时，暂停刷出新动物
+            if(isUserDetected || iframePortal.classList.contains('active')) return; 
 
             const animalDiv = document.createElement('div');
             animalDiv.className = 'animal-sprite';
@@ -565,7 +518,7 @@ dongxeu<!DOCTYPE html>
         setInterval(spawnAnimal, 3500);
 
         // ==========================================
-        // 3. MediaPipe Pose 姿势识别与几何图形
+        // 3. MediaPipe Pose 识别
         // ==========================================
         const initMediaPipe = () => {
             const pose = new Pose({locateFile: (file) => {
@@ -585,7 +538,8 @@ dongxeu<!DOCTYPE html>
 
             const camera = new Camera(videoElement, {
                 onFrame: async () => {
-                    if (appState === 'camera') {
+                    // 当覆盖层处于隐藏状态时，才处理摄像头，节省性能
+                    if (!iframePortal.classList.contains('active')) {
                         await pose.send({image: videoElement});
                     }
                 },
@@ -627,9 +581,7 @@ dongxeu<!DOCTYPE html>
             canvasCtx.restore();
         };
 
-        const bodyPerimeter = [
-            15, 13, 11, 7, 0, 8, 12, 14, 16, 24, 26, 28, 27, 25, 23
-        ];
+        const bodyPerimeter = [15, 13, 11, 7, 0, 8, 12, 14, 16, 24, 26, 28, 27, 25, 23];
 
         const drawArtisticGeometry = (landmarks) => {
             const w = outputCanvas.width;
@@ -661,7 +613,6 @@ dongxeu<!DOCTYPE html>
                 avgY /= validPoints.length;
 
                 canvasCtx.save();
-                
                 const scaleX = 1.0 + Math.sin(time * 1.1) * 0.25; 
                 const scaleY = 1.0 + Math.cos(time * 0.9) * 0.25; 
                 const rotation = Math.sin(time * 0.6) * 0.18;     
@@ -670,19 +621,13 @@ dongxeu<!DOCTYPE html>
                 canvasCtx.rotate(rotation);
                 canvasCtx.scale(scaleX, scaleY);
 
-                const points = validPoints.map(p => ({
-                    x: p.x * w - avgX,
-                    y: p.y * h - avgY
-                }));
+                const points = validPoints.map(p => ({ x: p.x * w - avgX, y: p.y * h - avgY }));
 
                 canvasCtx.beginPath();
                 let midpoints = [];
                 for (let i = 0; i < points.length; i++) {
                     let nextI = (i + 1) % points.length;
-                    midpoints.push({
-                        x: (points[i].x + points[nextI].x) / 2,
-                        y: (points[i].y + points[nextI].y) / 2
-                    });
+                    midpoints.push({ x: (points[i].x + points[nextI].x) / 2, y: (points[i].y + points[nextI].y) / 2 });
                 }
                 
                 canvasCtx.moveTo(midpoints[0].x, midpoints[0].y);
@@ -701,7 +646,6 @@ dongxeu<!DOCTYPE html>
                 canvasCtx.strokeStyle = `hsla(${(hue+180)%360}, 28%, 70%, 0.1)`;
                 canvasCtx.lineWidth = 5 / maxScale; 
                 canvasCtx.stroke();
-
                 canvasCtx.restore();
             }
 
@@ -717,97 +661,20 @@ dongxeu<!DOCTYPE html>
         };
 
         // ==========================================
-        // 4. AI 图像生成与全屏逻辑
+        // 4. 覆盖层交互逻辑 (画中画)
         // ==========================================
+        
+        // 点击“描述”按钮，展示嵌有外部网页的扩大版窗口2
         describeBtn.addEventListener('click', () => {
-            appState = 'generating';
-            inputDialog.classList.add('active');
+            iframePortal.classList.add('active');
             describeBtn.style.display = 'none';
-            promptInput.value = '';
-            promptInput.focus();
         });
 
-        btnCancel.addEventListener('click', () => {
-            appState = 'camera';
-            inputDialog.classList.remove('active');
+        // 点击“返回”按钮，隐藏窗口2，恢复画廊和按钮
+        closeIframeBtn.addEventListener('click', () => {
+            iframePortal.classList.remove('active');
             describeBtn.style.display = 'block';
         });
-
-        btnSubmit.addEventListener('click', async () => {
-            const prompt = promptInput.value.trim();
-            if(!prompt) return;
-
-            loadingSpinner.style.display = 'block';
-            btnSubmit.disabled = true;
-            btnCancel.disabled = true;
-            promptInput.disabled = true;
-
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                const payload = {
-                    instances: { prompt: prompt },
-                    parameters: { sampleCount: 1 }
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if(!response.ok) throw new Error("API 请求失败");
-                const result = await response.json();
-                const base64Img = result.predictions[0].bytesBase64Encoded;
-                
-                showGeneratedImage(`data:image/png;base64,${base64Img}`);
-            } catch (error) {
-                console.error("生成图像出错:", error);
-                alert("生成图像时发生错误，请稍后再试。");
-                resetUI();
-            }
-        });
-
-        const showGeneratedImage = (imgUrl) => {
-            appState = 'displaying';
-            aiImageView.style.backgroundImage = `url(${imgUrl})`;
-            inputDialog.classList.remove('active');
-            aiImageView.classList.add('show');
-            setTimeout(() => {
-                centerWindow.classList.add('fullscreen');
-                autoRecoverTimeoutId = setTimeout(() => {
-                    recoverToNormal();
-                }, 180000); 
-            }, 2000);
-        };
-
-        const recoverToNormal = () => {
-            if (autoRecoverTimeoutId) {
-                clearTimeout(autoRecoverTimeoutId);
-                autoRecoverTimeoutId = null;
-            }
-            centerWindow.classList.remove('fullscreen');
-            setTimeout(() => {
-                aiImageView.classList.remove('show');
-                resetUI();
-            }, 1000); 
-        };
-
-        centerWindow.addEventListener('dblclick', () => {
-            if (appState === 'displaying' && centerWindow.classList.contains('fullscreen')) {
-                recoverToNormal();
-            }
-        });
-
-        const resetUI = () => {
-            appState = 'camera';
-            describeBtn.style.display = 'block';
-            loadingSpinner.style.display = 'none';
-            btnSubmit.disabled = false;
-            btnCancel.disabled = false;
-            promptInput.disabled = false;
-            aiImageView.style.backgroundImage = 'none';
-            lastDetectTime = Date.now(); 
-        };
 
         window.onload = () => {
             initThreeJS();
